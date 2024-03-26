@@ -25,6 +25,7 @@ def is_port_in_use(port: int) -> bool:
 def main():
     args = argparse.ArgumentParser()
     args.add_argument("--client", type=str, help="Client mode, must specify the server address")
+    args.add_argument("pks", type=str, help="PKS Dir")
     args = args.parse_args()
 
     install_tor()
@@ -41,7 +42,7 @@ def main():
         socket.connect((args.client, 51827))
 
         print("Connected! Handshaking...")
-        client = eftp.TransferClient(socket)
+        client = eftp.TransferClient(socket, pks=args.pks)
         client.connect()
         print("Handshake complete! Sending file...")
         client.send_file("test/test.txt")
@@ -50,7 +51,7 @@ def main():
         return
     else:
         print(f"Server started at {get_hostname()}")
-        server = eftp.TransferServer(('127.0.0.1', 51827))
+        server = eftp.TransferServer(('127.0.0.1', 51827), pks=args.pks)
         server.listen_forever()
 
 if __name__ == "__main__":
