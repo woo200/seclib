@@ -3,3 +3,5 @@ pks_priv
 pks_pub
 test
 __pycache__/
+tor/
+hidden_service/

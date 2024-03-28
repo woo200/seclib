@@ -72,20 +72,5 @@ class TransferClient:
             self.sock = AESSock(self.sock, self.aes["key"])
         else:
             raise ValueError("Invalid handshake method")
-    
-    def send_file(self, file_path):
-        file_size = os.path.getsize(file_path)
-        self.sock.sendall(struct.pack('!Q', file_size))
-        self.sock.sendall(os.path.basename(file_path).encode())
-
-        print(f"Sending {file_path} ({file_size} bytes)")
-
-        with open(file_path, 'rb') as f:
-            while True:
-                data = f.read(4096)
-                if not data:
-                    break
-                self.sock.sendall(data)
         
-        print("File sent")
-        self.sock.socket.close()
+        return self.sock

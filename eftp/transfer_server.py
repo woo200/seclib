@@ -16,6 +16,9 @@ class AESSock():
         self.socket = socket
         self.buffer = io.BytesIO()
     
+    def fileno(self):
+        return self.socket.fileno()
+
     def sendall(self, data):
         cipher = AES.new(self.key, AES.MODE_GCM)
         nonce = cipher.nonce
@@ -30,6 +33,9 @@ class AESSock():
         cipher = AES.new(self.key, AES.MODE_GCM, nonce)
         data = cipher.decrypt_and_verify(ciphertext, tag)
         return data
+    
+    def is_alive(self):
+        return self.socket.fileno() != -1
 
     def recv(self, num_bytes):
         # if there are enough bytes in the buffer, return them and dont block
@@ -56,10 +62,13 @@ class TransferServer:
             'key_selection': 0,
             'handshake': 'RSA',
             'cipher_mode': AES.MODE_CBC,
+            'connect_handler': None,
+            'accept_many': False,
             **kwargs
         }
         self.bind_addr = bind_addr
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.client_threads = []
 
         self.rsa = {}
@@ -82,14 +91,18 @@ class TransferServer:
     def listen_forever(self):
         self.sock.bind(self.bind_addr)
         self.sock.listen(5)
-        while True:
+        if self.args['accept_many']:
+            while True:
+                client_sock, client_addr = self.sock.accept()
+                client_thread = threading.Thread(
+                    target=self.__handle_client, 
+                    args=(client_sock, client_addr)
+                )
+                client_thread.start()
+                self.client_threads.append(client_thread)
+        else:
             client_sock, client_addr = self.sock.accept()
-            client_thread = threading.Thread(
-                target=self.__handle_client, 
-                args=(client_sock, client_addr)
-            )
-            client_thread.start()
-            self.client_threads.append(client_thread)
+            self.__handle_client(client_sock, client_addr)
     
     def __handshake_rsa(self, client_sock, client_addr):
         v_token = get_random_bytes(16)
@@ -117,16 +130,6 @@ class TransferServer:
         else:
             raise ValueError("Invalid handshake method")
         
-        file_size, = struct.unpack('!Q', client_sock.recv(8))
-        file_name = client_sock.recvall().decode('utf-8')
-
-        print(f"Receiving file {file_name} from {client_addr}")
-
-        with open(file_name, 'wb') as f:
-            while file_size > 0:
-                data = client_sock.recvall()
-                f.write(data)
-                file_size -= len(data)
-
-        client_sock.socket.close()
-        print(f"Received file {file_name} from {client_addr}")
+        if self.args["connect_handler"] is not None:
+            self.args["connect_handler"](client_sock, client_addr)
+        raise Exception("Please specify connect_handler")
